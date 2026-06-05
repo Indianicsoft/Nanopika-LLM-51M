@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Grad Accum Test V2</title>
+    <script type="importmap">
+    {
+        "imports": {
+            "./LLM/model_config.js": "./LLM/mock_llm.js",
+            "./LLM/engine.js": "./LLM/mock_llm.js",
+            "./LLM/train.js": "./LLM/mock_llm.js",
+            "./LLM/backprop.js": "./LLM/mock_llm.js"
+        }
+    }
+    </script>
+</head>
+<body>
+    <h1>Gradient Accumulation Test (V2)</h1>
+    <div id="status">Testing...</div>
+    <pre id="log"></pre>
+
+    <script type="module">
+        import { extendArenaWithAccumBuffer, accumulatedTrainStep } from './grad_accum.js';
+        import { optimizer, allocateMemoryArena } from './LLM/mock_llm.js';
+
+        const status = document.getElementById('status');
+        const log = document.getElementById('log');
+
+        function print(msg) {
+            log.textContent += msg + "\n";
+            console.log(msg);
+        }
+
+        async function runTest() {
+            try {
+                // 1. Setup
+                const arena = allocateMemoryArena();
+                extendArenaWithAccumBuffer(arena);
+                
+                const fullBatch = {
+                    inputs: [new Uint32Array(1), new Uint32Array(1), new Uint32Array(1), new Uint32Array(1)],
+                    targets: [new Uint32Array(1), new Uint32Array(1), new Uint32Array(1), new Uint32Array(1)]
+                };
+                const microBatchSize = 1; // 4 micro-batches
+
+                // 2. Run Step
+                print("Running accumulatedTrainStep with 4 micro-batches...");
+                await accumulatedTrainStep(fullBatch, microBatchSize, 1, arena);
+
+                // 3. Verify Snapshots
+                const captured = optimizer.capturedGrads[0][0];
+                print("Gradient captured during optimizer.step(): " + captured);
+                
+                let success = true;
+                if (Math.abs(captured - 1.0) > 1e-6) {
+                    print("❌ FAILED: Expected 1.0, got " + captured);
+                    success = false;
+                }
+                if (optimizer.stepCount !== 1) {
+                    print("❌ FAILED: Expected 1 step, got " + optimizer.stepCount);
+                    success = false;
+                }
+
+                if (success) {
+                    status.textContent = "✅ VERIFICATION SUCCESSFUL!";
+                    status.style.color = "green";
+                } else {
+                    status.textContent = "❌ VERIFICATION FAILED!";
+                    status.style.color = "red";
+                }
+
+            } catch (e) {
+                status.textContent = "❌ ERROR: " + e.message;
+                print(e.stack);
+            }
+        }
+
+        runTest();
+    </script>
+</body>
+</html>

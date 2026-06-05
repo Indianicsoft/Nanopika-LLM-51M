@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+<body>
+  <div id="output">Testing...</div>
+  <script type="module">
+    import { arena } from "./LLM/memory.js";
+    import { initAllWeights, VOCAB_SIZE, dW_out, W_out, embeddingTable, dEmbedding } from "./LLM/model.js";
+    import { trainStep, lossAcc } from "./LLM/train.js";
+    import { backward, zeroGrads, optimizer } from "./LLM/backprop.js";
+
+    initAllWeights();
+    optimizer.resetMomentum();
+    const data = new Uint32Array([1, 2, 3, 4, 5, 1, 2, 3, 4, 5]);
+    const targets = new Uint32Array([2, 3, 4, 5, 1, 2, 3, 4, 5, 1]);
+    const out = document.getElementById("output");
+    out.innerHTML = "";
+
+    for (let epoch = 0; epoch < 101; epoch++) {
+      zeroGrads();
+      const loss = trainStep([data], [targets]);
+      backward();
+      optimizer.step(0.01);
+
+      if (epoch % 10 === 0) {
+        const line = document.createElement("div");
+        line.textContent = `Epoch ${epoch}: Loss = ${loss.toFixed(6)}`;
+        out.appendChild(line);
+      }
+    }
+  </script>
+</body>
+</html>
