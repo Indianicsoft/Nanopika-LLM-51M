@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>LLM Arena Test</title>
+</head>
+<body>
+    <h1>LLM Arena Initialization Test</h1>
+    <div id="status">Initializing...</div>
+    <pre id="console-log"></pre>
+
+    <script type="module">
+        import { init50MModel } from './model_config.js';
+
+        const logElem = document.getElementById('console-log');
+        const statusElem = document.getElementById('status');
+
+        // Intercept console.log to show on page
+        const oldLog = console.log;
+        console.log = (...args) => {
+            logElem.textContent += args.join(' ') + '\n';
+            oldLog(...args);
+        };
+
+        try {
+            const result = await init50MModel();
+            if (result.error) {
+                statusElem.textContent = "❌ Initialization Failed (OOM Expected on small RAM)";
+                console.log(result.error);
+            } else {
+                statusElem.textContent = "✅ Initialization Successful!";
+                console.log("Total Parameters: " + result.arena.paramCount.toLocaleString());
+                console.log("SharedArrayBuffer: " + result.arena.shared);
+            }
+        } catch (e) {
+            statusElem.textContent = "❌ Error: " + e.message;
+            console.log(e.stack);
+        }
+    </script>
+</body>
+</html>

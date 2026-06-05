@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>BPE Tokenizer Test</title>
+</head>
+<body>
+    <h1>BPE Tokenizer Test (Inlined)</h1>
+    <pre id="output"></pre>
+    <script>
+        // --- INLINED tokenizer.js ---
+        const vocab = new Map();
+        const merges = new Map();
+        let nextId = 256;
+
+        for (let i = 0; i < 256; i++) {
+            vocab.set(i, new Uint8Array([i]));
+        }
+
+        function compactInPlace(ids) {
+            let write = 0;
+            for (let read = 0; read < ids.length; read++) {
+                if (ids[read] !== 0xFFFFFFFF) {
+                    ids[write++] = ids[read];
+                }
+            }
+            return ids.subarray(0, write);
+        }
+
+        function trainTokenizer(corpus, targetVocabSize) {
+            const bytes = new TextEncoder().encode(corpus);
+            let ids = new Uint32Array(bytes.length);
+            ids.set(bytes);
+
+            while (vocab.size < targetVocabSize) {
+                const pairCounts = new Map();
+                for (let i = 0; i < ids.length - 1; i++) {
+                    const a = ids[i];
+                    const b = ids[i + 1];
+                    if (a === 0xFFFFFFFF || b === 0xFFFFFFFF) continue;
+                    const key = a + "," + b;
+                    pairCounts.set(key, (pairCounts.get(key) || 0) + 1);
+                }
+
+                let bestKey = null;
+                let bestCount = 0;
+                for (const [key, count] of pairCounts) {
+                    if (count > bestCount) {
+                        bestKey = key;
+                        bestCount = count;
+                    }
+                }
+                if (!bestKey) break;
+
+                const [aStr, bStr] = bestKey.split(",");
+                const a = parseInt(aStr);
+                const b = parseInt(bStr);
+                const mergedId = nextId++;
+                merges.set(bestKey, mergedId);
+
+                const bytesA = vocab.get(a);
+                const bytesB = vocab.get(b);
+                const merged = new Uint8Array(bytesA.length + bytesB.length);
+                merged.set(bytesA, 0);
+                merged.set(bytesB, bytesA.length);
+                vocab.set(mergedId, merged);
+
+                for (let i = 0; i < ids.length - 1; i++) {
+                    if (ids[i] === a && ids[i + 1] === b) {
+                        ids[i] = mergedId;
+                        ids[i + 1] = 0xFFFFFFFF;
+                        i++;
+                    }
+                }
+                ids = compactInPlace(ids);
+            }
+        }
+
+        function encode(text) {
+            const bytes = new TextEncoder().encode(text);
+            let ids = new Uint32Array(bytes.length);
+            ids.set(bytes);
+            for (const [pairKey, mergedId] of merges) {
+                const [aStr, bStr] = pairKey.split(",");
+                const a = parseInt(aStr);
+                const b = parseInt(bStr);
+                let changed = false;
+                for (let i = 0; i < ids.length - 1; i++) {
+                    if (ids[i] === a && ids[i + 1] === b) {
+                        ids[i] = mergedId;
+                        ids[i + 1] = 0xFFFFFFFF;
+                        i++;
+                        changed = true;
+                    }
+                }
+                if (changed) ids = compactInPlace(ids);
+            }
+            return ids;
+        }
+
+        function decode(tokenArray) {
+            let totalBytes = 0;
+            for (let i = 0; i < tokenArray.length; i++) {
+                totalBytes += vocab.get(tokenArray[i]).length;
+            }
+            const buffer = new Uint8Array(totalBytes);
+            let offset = 0;
+            for (let i = 0; i < tokenArray.length; i++) {
+                const bytes = vocab.get(tokenArray[i]);
+                buffer.set(bytes, offset);
+                offset += bytes.length;
+            }
+            return new TextDecoder().decode(buffer);
+        }
+        // --- END INLINED tokenizer.js ---
+
+        const log = (msg) => {
+            document.getElementById('output').textContent += msg + '\n';
+            console.log(msg);
+        };
+
+        try {
+            const corpus = "The quick brown fox jumps over the lazy dog. The fox is quick and the dog is lazy.";
+            const targetVocabSize = 300;
+
+            log("Training tokenizer...");
+            trainTokenizer(corpus, targetVocabSize);
+            log("Training complete.");
+
+            const testText = "The quick brown fox jumps!";
+            log("Original text: " + testText);
+
+            const encoded = encode(testText);
+            log("Encoded (TypedArray): [" + Array.from(encoded).join(', ') + "]");
+            log("Encoded length: " + encoded.length);
+
+            const decoded = decode(encoded);
+            log("Decoded text: " + decoded);
+
+            if (testText === decoded) {
+                log("SUCCESS: Round-trip verified.");
+            } else {
+                log("FAILURE: Round-trip mismatch!");
+            }
+        } catch (e) {
+            log("ERROR: " + e.message);
+            console.error(e);
+        }
+    </script>
+</body>
+</html>

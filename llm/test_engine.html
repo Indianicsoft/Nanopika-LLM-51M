@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html>
+<head><title>Engine and Autograd Test</title></head>
+<body>
+    <h1>Engine and Autograd Test</h1>
+    <pre id="output"></pre>
+    <script>
+        const log = (msg) => {
+            document.getElementById('output').textContent += msg + '\n';
+            console.log(msg);
+        };
+
+        // Mock Step 2 environment
+        const D_MODEL = 512;
+        const D_HEAD  = 64;
+        const SEQ_LEN = 128;
+        const D_FF    = 2048;
+
+        class MemoryArena {
+            constructor(cap) {
+                this.buffer = new ArrayBuffer(cap);
+                this.offset = 0;
+            }
+            allocate(size) {
+                const v = new Float32Array(this.buffer, this.offset, size);
+                this.offset += size * 4;
+                return v;
+            }
+        }
+        const arena = new MemoryArena(64 * 1024 * 1024);
+        const vecQ = arena.allocate(D_HEAD);
+        const vecK = arena.allocate(D_HEAD);
+        const vecV = arena.allocate(D_HEAD);
+        const attnScores = arena.allocate(SEQ_LEN);
+        const attnWeights = arena.allocate(SEQ_LEN);
+        const mlpHidden = arena.allocate(D_FF);
+        const mlpOut = arena.allocate(D_MODEL);
+        const scratch0 = arena.allocate(D_MODEL);
+        const scratch1 = arena.allocate(D_MODEL);
+    </script>
+    <script src="engine.js"></script>
+    <script>
+        try {
+            // 1. Test matmul
+            log("Testing matmul...");
+            const A = new Float32Array([1, 2, 3, 4]); // 2x2
+            const B = new Float32Array([5, 6, 7, 8]); // 2x2
+            const C = new Float32Array(4);
+            matmul(A, B, C, 2, 2, 2);
+            // Expected: [1*5+2*7, 1*6+2*8, 3*5+4*7, 3*6+4*8] = [19, 22, 43, 50]
+            if (C[0] === 19 && C[1] === 22 && C[2] === 43 && C[3] === 50) {
+                log("SUCCESS: matmul correct.");
+            } else {
+                log("FAILURE: matmul incorrect. Got: " + C);
+            }
+
+            // 2. Test attention
+            log("Testing attention (causal)...");
+            const Q = new Float32Array(SEQ_LEN * D_HEAD).fill(0.1);
+            const K = new Float32Array(SEQ_LEN * D_HEAD).fill(0.1);
+            const V = new Float32Array(SEQ_LEN * D_HEAD).fill(0.1);
+            const out = new Float32Array(SEQ_LEN * D_HEAD);
+            attention(Q, K, V, out, SEQ_LEN, D_HEAD);
+            log("SUCCESS: attention ran without error.");
+
+            // 3. Test backward (matmul)
+            log("Testing backward (matmul)...");
+            const gradC = new Float32Array([1, 1, 1, 1]);
+            const gradA = new Float32Array(4).fill(0);
+            const gradB = new Float32Array(4).fill(0);
+            tape.push({
+                name: "matmul",
+                A, B, C,
+                gradA, gradB, gradC,
+                M: 2, N: 2, K: 2
+            });
+            backward();
+            // gradA = gradC * B^T = [1, 1; 1, 1] * [5, 7; 6, 8] = [11, 15, 11, 15]
+            if (gradA[0] === 11 && gradA[1] === 15) {
+                log("SUCCESS: backward matmul correct.");
+            } else {
+                log("FAILURE: backward matmul incorrect. Got: " + gradA);
+            }
+
+            // 4. Test Adam
+            log("Testing AdamOptimizer...");
+            const w = new Float32Array([1.0, 1.0]);
+            const g = new Float32Array([0.1, 0.1]);
+            const opt = new AdamOptimizer([w], 0.1);
+            opt.step([g]);
+            if (w[0] < 1.0) {
+                log("SUCCESS: Adam update decreased weight (correct for positive gradient).");
+            } else {
+                log("FAILURE: Adam update incorrect.");
+            }
+
+        } catch (e) {
+            log("ERROR: " + e.message);
+            console.error(e);
+        }
+    </script>
+</body>
+</html>

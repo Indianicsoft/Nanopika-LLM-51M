@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head><title>Memory Arena Test</title></head>
+<body>
+    <h1>Memory Arena Test</h1>
+    <pre id="output"></pre>
+    <script>
+        const log = (msg) => {
+            document.getElementById('output').textContent += msg + '\n';
+            console.log(msg);
+        };
+
+        try {
+            // Include memory.js logic here or just fetch it
+            // Since it's a simple script, we'll just run it.
+        } catch(e) {}
+    </script>
+    <script src="memory.js"></script>
+    <script>
+        try {
+            log("MemoryArena instantiated with capacity: " + arena.capacity);
+            log("Allocated vecQ size: " + vecQ.length);
+            log("Current arena offset: " + arena.offset);
+
+            if (vecQ.buffer === arena.buffer && vecK.buffer === arena.buffer) {
+                log("SUCCESS: Tensors share the same ArrayBuffer.");
+            } else {
+                log("FAILURE: Tensors do not share the same buffer.");
+            }
+
+            const expectedOffset = (D_HEAD * 3 + SEQ_LEN * 2 + D_FF + D_MODEL * 3) * 4;
+            if (arena.offset === expectedOffset) {
+                log("SUCCESS: Arena offset matches expected value.");
+            } else {
+                log("FAILURE: Arena offset mismatch. Expected " + expectedOffset + ", got " + arena.offset);
+            }
+
+            arena.reset();
+            if (arena.offset === 0) {
+                log("SUCCESS: Arena reset worked.");
+            } else {
+                log("FAILURE: Arena reset failed.");
+            }
+
+            try {
+                arena.allocate(arena.capacity + 1);
+                log("FAILURE: Arena did not throw on overflow.");
+            } catch (e) {
+                if (e.message.includes("MemoryArena overflow")) {
+                    log("SUCCESS: Arena threw correct overflow error.");
+                } else {
+                    log("FAILURE: Arena threw wrong error: " + e.message);
+                }
+            }
+        } catch (e) {
+            log("ERROR: " + e.message);
+        }
+    </script>
+</body>
+</html>
