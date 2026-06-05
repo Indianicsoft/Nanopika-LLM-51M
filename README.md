@@ -99,11 +99,11 @@ Everything runs inside a standard web browser tab.
 
 ## 🔭 Roadmap
 
-- [ ] Hugging Face model card + weight upload
-- [ ] WASM fallback for non-WebGPU browsers
-- [ ] Multi-tab distributed training via SharedArrayBuffer
-- [ ] Quantized GGUF-style export
-- [ ] Fine-tuned chat checkpoint release
+- [*] Hugging Face model card + weight upload
+- [*] WASM fallback for non-WebGPU browsers
+- [*] Multi-tab distributed training via SharedArrayBuffer
+- [*] Quantized GGUF-style export
+- [*] Fine-tuned chat checkpoint release
 
 ---
 
